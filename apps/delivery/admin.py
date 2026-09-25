@@ -1,0 +1,9 @@
+from django.contrib import admin
+from .models import Delivery
+
+
+@admin.register(Delivery)
+class DeliveryAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'driver', 'status', 'assigned_at', 'delivered_at']
+    list_filter = ['status']
+    search_fields = ['order__order_number', 'driver__user__email']

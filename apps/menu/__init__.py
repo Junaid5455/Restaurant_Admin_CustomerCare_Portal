@@ -1,0 +1,1 @@
+"""Menu app — handles menu items and categories."""

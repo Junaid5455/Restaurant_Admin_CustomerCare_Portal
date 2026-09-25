@@ -1,0 +1,1 @@
+"""Users app — handles user management and authentication."""

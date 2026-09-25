@@ -1,0 +1,1 @@
+"""Kitchen app — handles Kitchen Display System (KDS)."""

@@ -1,0 +1,1 @@
+"""Analytics app — handles reports and business intelligence."""
