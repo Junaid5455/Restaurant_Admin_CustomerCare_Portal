@@ -19,9 +19,11 @@ class MenuItemAddOnSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'price', 'is_available']
 
 class MenuCategorySerializer(serializers.ModelSerializer):
+    item_count = serializers.IntegerField(source='items.count', read_only=True)
+    
     class Meta:
         model = MenuCategory
-        fields = ['id', 'name', 'description', 'image', 'order', 'is_active']
+        fields = ['id', 'name', 'description', 'image', 'order', 'is_active', 'item_count']
 
 class MenuCategoryDetailSerializer(MenuCategorySerializer):
     items = serializers.SerializerMethodField()
@@ -41,20 +43,23 @@ class MenuItemSerializer(serializers.ModelSerializer):
         model = MenuItem
         fields = [
             'id', 'name', 'description', 'price', 'image', 'prep_time', 
-            'is_available', 'is_featured', 'rating', 'review_count'
+            'is_available', 'is_featured', 'is_new', 'rating', 'review_count'
         ]
 
 class MenuItemDetailSerializer(serializers.ModelSerializer):
     review_count = serializers.IntegerField(source='total_reviews', read_only=True)
     prep_time = serializers.IntegerField(source='preparation_time_minutes', read_only=True)
     customizations = MenuItemCustomizationSerializer(many=True, read_only=True)
-    add_ons = MenuItemAddOnSerializer(many=True, read_only=True)
+    
+    # Add source='addons' to map it to the model's related name
+    add_ons = MenuItemAddOnSerializer(many=True, read_only=True, source='addons') 
+    
     category = MenuCategorySerializer(read_only=True)
     
     class Meta:
         model = MenuItem
         fields = [
             'id', 'name', 'description', 'price', 'image', 'prep_time', 
-            'is_available', 'is_featured', 'is_spicy', 'is_vegetarian', 'is_vegan', 
+            'is_available', 'is_featured', 'is_new', 'is_spicy', 'is_vegetarian', 'is_vegan', 
             'calories', 'rating', 'review_count', 'customizations', 'add_ons', 'category'
         ]

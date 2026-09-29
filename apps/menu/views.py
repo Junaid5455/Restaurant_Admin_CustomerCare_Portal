@@ -7,9 +7,13 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.pagination import PageNumberPagination
 
 from apps.menu.models import MenuCategory, MenuItem, MenuItemCustomization
-from apps.menu.serializers import MenuCategorySerializer, MenuItemSerializer, MenuItemDetailSerializer, MenuItemCustomizationSerializer
+from apps.menu.serializers import (
+    MenuCategorySerializer, MenuCategoryDetailSerializer, 
+    MenuItemSerializer, MenuItemDetailSerializer, MenuItemCustomizationSerializer
+)
 
 class MenuCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """Menu category browsing endpoints"""
     queryset = MenuCategory.objects.filter(is_active=True)
     serializer_class = MenuCategorySerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -25,6 +29,11 @@ class MenuCategoryViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(restaurant_id=restaurant_id)
         return queryset.order_by('order', 'name')
 
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return MenuCategoryDetailSerializer
+        return MenuCategorySerializer
+
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticatedOrReadOnly])
     def items(self, request, pk=None):
         """Get all items in this category: /api/v1/menu/categories/{id}/items/"""
@@ -38,13 +47,18 @@ class MenuCategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class MenuItemViewSet(viewsets.ReadOnlyModelViewSet):
+    """Menu item browsing with search, filter, and recommendations"""
     queryset = MenuItem.objects.filter(is_available=True, restaurant__is_active=True)
     serializer_class = MenuItemDetailSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_vegetarian', 'is_vegan', 'is_spicy', 'is_featured', 'restaurant', 'category']
+    
+    # Added 'is_new' and 'is_featured' (for deals) to filterset
+    filterset_fields = [
+        'is_vegetarian', 'is_vegan', 'is_spicy', 'is_featured', 'is_new', 'restaurant', 'category'
+    ]
     search_fields = ['name', 'description', 'category__name']
-    ordering_fields = ['name', 'price', 'rating', 'preparation_time_minutes']
+    ordering_fields = ['name', 'price', 'rating', 'preparation_time_minutes', 'created_at']
     pagination_class = PageNumberPagination
     
     def get_serializer_class(self):
@@ -66,8 +80,24 @@ class MenuItemViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticatedOrReadOnly])
     def featured(self, request):
-        """Get featured menu items: /api/v1/menu/items/featured/"""
+        """Get featured menu items (Deals): /api/v1/menu/items/featured/"""
         items = self.get_queryset().filter(is_featured=True)[:10]
+        serializer = MenuItemSerializer(items, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticatedOrReadOnly])
+    def new_arrivals(self, request):
+        """Get new menu items: /api/v1/menu/items/new_arrivals/"""
+        items = self.get_queryset().filter(is_new=True)[:10]
+        serializer = MenuItemSerializer(items, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticatedOrReadOnly])
+    def recommended(self, request):
+        """Get recommended items (High rating + Featured): /api/v1/menu/items/recommended/"""
+        # Recommend items with rating >= 4.0 or featured items
+        items = self.get_queryset().filter(is_featured=True) | self.get_queryset().filter(rating__gte=4.0)
+        items = items.distinct().order_by('-rating')[:10]
         serializer = MenuItemSerializer(items, many=True)
         return Response(serializer.data)
     
