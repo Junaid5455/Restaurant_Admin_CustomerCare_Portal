@@ -452,3 +452,8 @@ CHANNEL_LAYERS = {
 APP_NAME = env("APP_NAME", default="Restaurant Portal")
 APP_VERSION = env("APP_VERSION", default="1.0.0")
 APP_ENVIRONMENT = env("APP_ENVIRONMENT", default="development")
+
+
+# Stripe Configuration
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="") # Leave blank to use Mock Mode for testing
+STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY", default="")
