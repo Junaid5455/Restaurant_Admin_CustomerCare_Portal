@@ -205,3 +205,24 @@ class PasswordResetToken(BaseModel):
             expires_at=expires_at
         )
         return obj
+
+
+
+class SavedAddress(BaseModel):
+    """Saved delivery addresses for customers"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='addresses')
+    label = models.CharField(max_length=50, help_text="e.g., Home, Work")
+    address = models.TextField()
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    country = models.CharField(max_length=100)
+    postal_code = models.CharField(max_length=10)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.label} - {self.user.email}"

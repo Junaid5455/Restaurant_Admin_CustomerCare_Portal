@@ -18,6 +18,10 @@ from apps.users.email_service import EmailService
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
+from apps.users.models import SavedAddress
+from apps.users.serializers import SavedAddressSerializer
+from apps.common.permissions import IsCustomerUser
+
 
 
 
@@ -217,3 +221,15 @@ class ResetPasswordView(APIView):
             
             return SuccessResponse(message="Password reset successfully")
         return ErrorResponse(message="Reset failed", errors=serializer.errors)
+
+
+class SavedAddressViewSet(viewsets.ModelViewSet):
+    """Customer saved addresses management"""
+    serializer_class = SavedAddressSerializer
+    permission_classes = [IsAuthenticated, IsCustomerUser]
+
+    def get_queryset(self):
+        return SavedAddress.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save()

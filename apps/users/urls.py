@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import (
 from . import views
 
 router = DefaultRouter()
+router.register(r'addresses', views.SavedAddressViewSet, basename='addresses')
 
 urlpatterns = [
     # JWT Token endpoints

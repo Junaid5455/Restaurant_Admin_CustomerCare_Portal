@@ -4,6 +4,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.users.models import UserProfile
 from apps.users.models import EmailVerificationToken, PasswordResetToken
 from django.utils import timezone
+from apps.users.models import SavedAddress
 
 
 
@@ -137,3 +138,18 @@ class ResetPasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError("Passwords do not match.")
         
         return data
+
+
+
+class SavedAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedAddress
+        fields = ['id', 'label', 'address', 'city', 'state', 'country', 'postal_code', 'latitude', 'longitude', 'is_default']
+        read_only_fields = ['id']
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        # If this is set as default, remove default from others
+        if validated_data.get('is_default'):
+            SavedAddress.objects.filter(user=user, is_default=True).update(is_default=False)
+        return SavedAddress.objects.create(user=user, **validated_data)
