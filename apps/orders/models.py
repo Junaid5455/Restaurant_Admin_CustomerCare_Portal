@@ -106,6 +106,21 @@ class Order(BaseModel):
     def can_be_cancelled(self):
         return self.status in ['PLACED', 'CONFIRMED']
 
+        # Add this method inside the Order class
+    def get_estimated_completion_time(self):
+        """Calculate estimated completion time based on order type"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Base preparation time
+        eta_minutes = self.estimated_preparation_time_minutes or 30
+        
+        # Add delivery time if it's a delivery order
+        if self.order_type == 'DELIVERY':
+            eta_minutes += self.estimated_delivery_time_minutes or 30
+            
+        return self.placed_at + timedelta(minutes=eta_minutes)
+
 
 class OrderItem(BaseModel):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')

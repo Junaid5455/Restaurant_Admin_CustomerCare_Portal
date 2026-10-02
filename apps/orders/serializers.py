@@ -70,3 +70,27 @@ class CartSerializer(serializers.ModelSerializer):
             'items', 'created_at'
         ]
         read_only_fields = ['order_number', 'subtotal', 'tax_amount', 'delivery_fee', 'total_amount']
+
+
+class OrderTrackingSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for order tracking"""
+    estimated_completion_time = serializers.SerializerMethodField()
+    restaurant_name = serializers.CharField(source='restaurant.name', read_only=True)
+    items = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'order_number', 'restaurant_name', 'order_type', 'status', 
+            'payment_status', 'placed_at', 'estimated_completion_time', 'items'
+        ]
+    
+    def get_estimated_completion_time(self, obj):
+        return obj.get_estimated_completion_time()
+    
+    def get_items(self, obj):
+        """Return simplified item list"""
+        return [
+            {"name": item.item_name, "quantity": item.quantity} 
+            for item in obj.items.all()
+        ]

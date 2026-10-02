@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404
 
 from apps.common.permissions import IsCustomerUser, IsOwnerOfOrder
 from apps.orders.models import Order, OrderItem, OrderItemCustomization, OrderItemAddOn
-from apps.orders.serializers import CartSerializer, AddToCartSerializer, OrderSerializer
+from apps.orders.serializers import CartSerializer, AddToCartSerializer, OrderSerializer, OrderTrackingSerializer
 from apps.menu.models import MenuItem, MenuItemCustomizationOption, MenuItemAddOn
 from apps.restaurants.models import RestaurantStaffMember
 from apps.users.models import SavedAddress
@@ -30,17 +30,25 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'CUSTOMER':
-            return Order.objects.filter(customer=user).exclude(status='CART')
+            # Customers only see their own orders, excluding active carts
+            return Order.objects.filter(customer=user).exclude(status='CART').select_related('restaurant').prefetch_related('items')
         elif user.role == 'RESTAURANT_OWNER':
-            return Order.objects.filter(restaurant__owner=user).exclude(status='CART')
+            return Order.objects.filter(restaurant__owner=user).exclude(status='CART').select_related('restaurant').prefetch_related('items')
         elif user.role == 'RESTAURANT_STAFF':
             staff_member = RestaurantStaffMember.objects.filter(user=user).first()
             if staff_member:
-                return Order.objects.filter(restaurant=staff_member.restaurant).exclude(status='CART')
+                return Order.objects.filter(restaurant=staff_member.restaurant).exclude(status='CART').select_related('restaurant').prefetch_related('items')
             return Order.objects.none()
         elif user.role == 'SUPER_ADMIN':
-            return Order.objects.exclude(status='CART')
+            return Order.objects.exclude(status='CART').select_related('restaurant').prefetch_related('items')
         return Order.objects.none()
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def track(self, request, pk=None):
+        """GET /api/v1/orders/{id}/track/ - Track order status"""
+        order = self.get_object()
+        serializer = OrderTrackingSerializer(order)
+        return Response(serializer.data)
 
 
 class CartViewSet(viewsets.ViewSet):
