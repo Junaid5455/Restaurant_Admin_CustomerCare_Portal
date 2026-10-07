@@ -1,9 +1,10 @@
-"""
-URL configuration for the kitchen app.
-"""
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from . import views
 
 router = DefaultRouter()
-# TODO: Register viewsets here
+router.register(r'orders', views.KitchenOrderViewSet, basename='kitchen-order')
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('', include(router.urls)),
+]

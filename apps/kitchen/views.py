@@ -1,22 +1,61 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from apps.kitchen.models import KitchenOrder
-from apps.kitchen.serializers import KitchenOrderSerializer # Make sure this exists
-from apps.restaurants.models import RestaurantStaffMember
+from django.shortcuts import get_object_or_404
 
-class KitchenOrderViewSet(viewsets.ModelViewSet):
+from apps.orders.models import Order
+from apps.restaurants.models import RestaurantStaffMember
+from apps.kitchen.serializers import KitchenOrderSerializer
+from apps.common.permissions import IsRestaurantStaff
+
+class KitchenOrderViewSet(viewsets.GenericViewSet):
+    """Endpoints for the Kitchen Display System (KDS)"""
     serializer_class = KitchenOrderSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsRestaurantStaff]
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'RESTAURANT_STAFF':
-            staff_member = RestaurantStaffMember.objects.filter(user=user).first()
-            if staff_member:
-                return KitchenOrder.objects.filter(order__restaurant=staff_member.restaurant)
-            return KitchenOrder.objects.none()
-        elif user.role == 'RESTAURANT_OWNER':
-            return KitchenOrder.objects.filter(order__restaurant__owner=user)
-        elif user.role == 'SUPER_ADMIN':
-            return KitchenOrder.objects.all()
-        return KitchenOrder.objects.none()
+        
+        # Find the restaurant the staff member belongs to
+        if user.role == 'RESTAURANT_OWNER':
+            restaurant = get_object_or_404(Restaurant, owner=user)
+        else: # RESTAURANT_STAFF
+            staff_member = get_object_or_404(RestaurantStaffMember, user=user)
+            restaurant = staff_member.restaurant
+
+        # KDS only cares about orders currently in the kitchen (CONFIRMED or PREPARING)
+        return Order.objects.filter(
+            restaurant=restaurant, 
+            status__in=['CONFIRMED', 'PREPARING']
+        ).prefetch_related('items__customizations', 'items__addons').order_by('placed_at')
+
+    def list(self, request):
+        """GET /api/v1/kitchen/orders/ - Get active orders for the kitchen"""
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='start')
+    def start_preparation(self, request, pk=None):
+        """POST /api/v1/kitchen/orders/{id}/start/ - Mark order as PREPARING"""
+        order = self.get_object()
+        
+        if order.status != 'CONFIRMED':
+            return Response({"error": f"Order must be CONFIRMED to start. Current: {order.status}"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        order.update_status('PREPARING')
+        serializer = self.get_serializer(order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='ready')
+    def mark_ready(self, request, pk=None):
+        """POST /api/v1/kitchen/orders/{id}/ready/ - Mark order as READY for pickup/delivery"""
+        order = self.get_object()
+        
+        if order.status != 'PREPARING':
+            return Response({"error": f"Order must be PREPARING to mark as ready. Current: {order.status}"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        order.update_status('READY')
+        serializer = self.get_serializer(order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
