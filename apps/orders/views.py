@@ -4,10 +4,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.common.permissions import IsCustomerUser, IsOwnerOfOrder
 from apps.orders.models import Order, OrderItem, OrderItemCustomization, OrderItemAddOn
-from apps.orders.serializers import CartSerializer, AddToCartSerializer, OrderSerializer, OrderTrackingSerializer
+from apps.orders.serializers import (
+    CartSerializer, AddToCartSerializer, OrderSerializer, 
+    OrderTrackingSerializer, OrderStatusUpdateSerializer
+)
 from apps.menu.models import MenuItem, MenuItemCustomizationOption, MenuItemAddOn
 from apps.restaurants.models import RestaurantStaffMember
 from apps.users.models import SavedAddress
@@ -15,13 +19,15 @@ from decimal import Decimal
 
 
 class OrderViewSet(viewsets.ModelViewSet):
-    """ViewSet for viewing placed orders"""
+    """ViewSet for viewing and managing placed orders"""
     serializer_class = OrderSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['status', 'order_type', 'payment_status']
 
     def get_permissions(self):
         if self.action == 'create':
             permission_classes = [IsCustomerUser]
-        elif self.action in ['update', 'partial_update', 'destroy']:
+        elif self.action in ['update', 'partial_update', 'destroy', 'update_status', 'cancel']:
             permission_classes = [IsOwnerOfOrder]
         else:
             permission_classes = [IsAuthenticated]
@@ -49,6 +55,38 @@ class OrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         serializer = OrderTrackingSerializer(order)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='update-status')
+    def update_status(self, request, pk=None):
+        """POST /api/v1/orders/{id}/update-status/ - Update order status (e.g., to PREPARING)"""
+        order = self.get_object()
+        serializer = OrderStatusUpdateSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        new_status = serializer.validated_data['status']
+        
+        # Prevent reverting cancelled/delivered orders
+        if order.status in ['DELIVERED', 'CANCELLED', 'REFUNDED'] and new_status not in ['CANCELLED', 'REFUNDED']:
+            raise ValidationError(f"Cannot change status of a {order.status} order.")
+            
+        order.update_status(new_status)
+        return Response({"message": f"Order status updated to {new_status}", "current_status": order.status}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        """POST /api/v1/orders/{id}/cancel/ - Cancel an order"""
+        order = self.get_object()
+        
+        if not order.can_be_cancelled():
+            raise ValidationError(f"Order cannot be cancelled because its current status is {order.status}.")
+            
+        cancellation_reason = request.data.get('reason', 'Cancelled by restaurant/admin')
+        order.cancellation_reason = cancellation_reason
+        order.update_status('CANCELLED')
+        
+        return Response({"message": "Order cancelled successfully"}, status=status.HTTP_200_OK)
 
 
 class CartViewSet(viewsets.ViewSet):

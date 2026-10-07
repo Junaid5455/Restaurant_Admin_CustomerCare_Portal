@@ -2,6 +2,11 @@ from rest_framework import serializers
 from apps.orders.models import Order, OrderItem, OrderItemCustomization, OrderItemAddOn
 from apps.menu.models import MenuItem, MenuItemCustomizationOption, MenuItemAddOn
 from decimal import Decimal
+from apps.common.choices import ORDER_STATUS
+
+class OrderStatusUpdateSerializer(serializers.Serializer):
+    """Serializer for validating order status updates"""
+    status = serializers.ChoiceField(choices=ORDER_STATUS)
 
 class OrderItemCustomizationSerializer(serializers.ModelSerializer):
     class Meta:
