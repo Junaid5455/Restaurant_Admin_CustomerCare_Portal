@@ -4,7 +4,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.users.models import UserProfile
 from apps.users.models import EmailVerificationToken, PasswordResetToken
 from django.utils import timezone
-from apps.users.models import SavedAddress
+from apps.users.models import SavedAddress, FavoriteRestaurant, FavoriteMenuItem, GiftCard
+from apps.restaurants.serializers import RestaurantListSerializer
+from apps.menu.serializers import MenuItemSerializer
 
 
 
@@ -153,3 +155,33 @@ class SavedAddressSerializer(serializers.ModelSerializer):
         if validated_data.get('is_default'):
             SavedAddress.objects.filter(user=user, is_default=True).update(is_default=False)
         return SavedAddress.objects.create(user=user, **validated_data)
+
+
+class FavoriteRestaurantSerializer(serializers.ModelSerializer):
+    restaurant = RestaurantListSerializer(read_only=True)
+    restaurant_id = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = FavoriteRestaurant
+        fields = ['id', 'restaurant', 'restaurant_id', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class FavoriteMenuItemSerializer(serializers.ModelSerializer):
+    menu_item = MenuItemSerializer(read_only=True)
+    menu_item_id = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = FavoriteMenuItem
+        fields = ['id', 'menu_item', 'menu_item_id', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class GiftCardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GiftCard
+        fields = ['id', 'code', 'initial_amount', 'balance', 'is_active', 'expires_at']
+        read_only_fields = ['code', 'initial_amount', 'balance', 'is_active', 'expires_at']
+
+class RewardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['loyalty_points', 'total_orders', 'total_spent']

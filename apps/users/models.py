@@ -226,3 +226,29 @@ class SavedAddress(BaseModel):
 
     def __str__(self):
         return f"{self.label} - {self.user.email}"
+
+
+class FavoriteRestaurant(BaseModel):
+    """User's favorite restaurants"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorite_restaurants')
+    restaurant = models.ForeignKey('restaurants.Restaurant', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('user', 'restaurant')
+
+class FavoriteMenuItem(BaseModel):
+    """User's favorite menu items"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorite_items')
+    menu_item = models.ForeignKey('menu.MenuItem', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('user', 'menu_item')
+
+class GiftCard(BaseModel):
+    """User's gift cards"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='gift_cards')
+    code = models.CharField(max_length=20, unique=True)
+    initial_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    balance = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(null=True, blank=True)

@@ -3,17 +3,20 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework.response import Response
 from apps.users.serializers import (
     CustomUserSerializer, 
     CustomUserCreateSerializer, 
     LoginSerializer, 
-    ChangePasswordSerializer
+    ChangePasswordSerializer,
+    FavoriteRestaurantSerializer, FavoriteMenuItemSerializer, 
+    GiftCardSerializer, RewardSerializer
 )
 from apps.common.responses import SuccessResponse, ErrorResponse
 from django.contrib.auth import get_user_model
 
 from apps.users.serializers import EmailVerificationSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
-from apps.users.models import EmailVerificationToken, PasswordResetToken
+from apps.users.models import User, UserProfile, SavedAddress, EmailVerificationToken, PasswordResetToken, FavoriteRestaurant, FavoriteMenuItem, GiftCard
 from apps.users.email_service import EmailService
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -233,3 +236,46 @@ class SavedAddressViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save()
+
+
+
+class FavoriteRestaurantViewSet(viewsets.ModelViewSet):
+    """Manage favorite restaurants"""
+    serializer_class = FavoriteRestaurantSerializer
+    permission_classes = [IsAuthenticated, IsCustomerUser]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options'] # No update/put
+
+    def get_queryset(self):
+        return FavoriteRestaurant.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class FavoriteMenuItemViewSet(viewsets.ModelViewSet):
+    """Manage favorite menu items"""
+    serializer_class = FavoriteMenuItemSerializer
+    permission_classes = [IsAuthenticated, IsCustomerUser]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        return FavoriteMenuItem.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class GiftCardViewSet(viewsets.ReadOnlyModelViewSet):
+    """View gift cards"""
+    serializer_class = GiftCardSerializer
+    permission_classes = [IsAuthenticated, IsCustomerUser]
+
+    def get_queryset(self):
+        return GiftCard.objects.filter(user=self.request.user, is_active=True)
+
+class RewardView(APIView):
+    """View loyalty points & rewards"""
+    permission_classes = [IsAuthenticated, IsCustomerUser]
+
+    def get(self, request):
+        profile, created = UserProfile.objects.get_or_create(user=request.user)
+        serializer = RewardSerializer(profile)
+        return Response(serializer.data)
