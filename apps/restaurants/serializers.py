@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from apps.restaurants.models import Restaurant, RestaurantDeliveryZone
+from apps.restaurants.models import Restaurant, RestaurantDeliveryZone, RestaurantHoliday
 from apps.menu.serializers import MenuCategorySerializer
+
 
 class RestaurantDeliveryZoneSerializer(serializers.ModelSerializer):
     class Meta:
@@ -44,3 +45,31 @@ class RestaurantDetailSerializer(serializers.ModelSerializer):
         from django.utils import timezone
         current_time = timezone.now().time()
         return obj.opening_time <= current_time <= obj.closing_time
+
+
+
+
+class RestaurantSettingsSerializer(serializers.ModelSerializer):
+    """Serializer for restaurant owner to update settings"""
+    class Meta:
+        model = Restaurant
+        fields = [
+            'id', 'name', 'description', 'logo', 'banner', 'email', 'phone',
+            'address', 'city', 'state', 'country', 'postal_code', 
+            'opening_time', 'closing_time', 'is_open',
+            'allows_pickup', 'allows_delivery', 'allows_dine_in',
+            'min_order_amount', 'delivery_fee', 'delivery_time_minutes', 'tax_rate',
+            
+        ]
+        read_only_fields = ['id']
+
+class RestaurantHolidaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RestaurantHoliday
+        fields = ['id', 'holiday_date', 'reason', 'created_at']
+        read_only_fields = ['created_at']
+
+class RestaurantDeliveryZoneSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RestaurantDeliveryZone
+        fields = ['id', 'zone_name', 'delivery_fee', 'delivery_time_minutes', 'postal_codes', 'is_active']

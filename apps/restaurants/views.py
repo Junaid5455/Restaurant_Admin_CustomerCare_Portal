@@ -1,15 +1,17 @@
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.views import APIView
 
 from apps.common.permissions import CanManageRestaurant, IsRestaurantOwner
-from apps.restaurants.models import Restaurant, RestaurantDeliveryZone
-from apps.restaurants.serializers import RestaurantDetailSerializer, RestaurantListSerializer, RestaurantDeliveryZoneSerializer
+from apps.restaurants.models import Restaurant, RestaurantDeliveryZone,  RestaurantHoliday
+from apps.restaurants.serializers import RestaurantDetailSerializer, RestaurantListSerializer, RestaurantDeliveryZoneSerializer, RestaurantSettingsSerializer, RestaurantHolidaySerializer
 from apps.menu.models import MenuCategory
 from apps.menu.serializers import MenuCategoryDetailSerializer
 
@@ -98,3 +100,47 @@ class RestaurantViewSet(viewsets.ModelViewSet):
             'restaurants': serializer.data,
             'count': len(restaurants)
         })
+
+
+
+
+class RestaurantSettingsView(APIView):
+    """Get or Update restaurant settings"""
+    permission_classes = [IsAuthenticated, IsRestaurantOwner]
+
+    def get(self, request):
+        restaurant = get_object_or_404(Restaurant, owner=request.user)
+        serializer = RestaurantSettingsSerializer(restaurant)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        restaurant = get_object_or_404(Restaurant, owner=request.user)
+        serializer = RestaurantSettingsSerializer(restaurant, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class RestaurantHolidayViewSet(viewsets.ModelViewSet):
+    """Manage restaurant holidays/closures"""
+    serializer_class = RestaurantHolidaySerializer
+    permission_classes = [IsAuthenticated, IsRestaurantOwner]
+
+    def get_queryset(self):
+        return RestaurantHoliday.objects.filter(restaurant__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        restaurant = get_object_or_404(Restaurant, owner=self.request.user)
+        serializer.save(restaurant=restaurant)
+
+class RestaurantDeliveryZoneViewSet(viewsets.ModelViewSet):
+    """Manage restaurant delivery zones"""
+    serializer_class = RestaurantDeliveryZoneSerializer
+    permission_classes = [IsAuthenticated, IsRestaurantOwner]
+
+    def get_queryset(self):
+        return RestaurantDeliveryZone.objects.filter(restaurant__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        restaurant = get_object_or_404(Restaurant, owner=self.request.user)
+        serializer.save(restaurant=restaurant)
