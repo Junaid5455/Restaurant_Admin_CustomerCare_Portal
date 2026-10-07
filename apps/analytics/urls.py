@@ -1,9 +1,10 @@
-"""
-URL configuration for the analytics app.
-"""
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from . import views
 
 router = DefaultRouter()
-# TODO: Register viewsets here
+router.register(r'dashboard', views.DashboardViewSet, basename='dashboard')
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('', include(router.urls)),
+]
