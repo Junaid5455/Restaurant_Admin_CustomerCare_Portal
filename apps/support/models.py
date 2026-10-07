@@ -16,7 +16,7 @@ def generate_ticket_id():
 
 
 class SupportTicket(BaseModel):
-    ticket_id = models.CharField(max_length=20, unique=True, default=generate_ticket_id, editable=False)
+    ticket_id = models.CharField(max_length=30, unique=True, default=generate_ticket_id, editable=False)
     customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='support_tickets')
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, null=True, blank=True)
     related_order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True)
