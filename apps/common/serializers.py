@@ -2,6 +2,9 @@
 Base serializer classes for the Restaurant Portal API.
 """
 from rest_framework import serializers
+from apps.users.models import User
+from apps.restaurants.models import Restaurant
+from apps.orders.models import Order
 
 
 class BaseSerializer(serializers.ModelSerializer):
@@ -59,3 +62,26 @@ class DynamicFieldsModelSerializer(serializers.ModelSerializer):
             existing = set(self.fields)
             for field_name in existing - allowed:
                 self.fields.pop(field_name)
+
+
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'role', 'is_active', 'date_joined']
+
+class AdminRestaurantSerializer(serializers.ModelSerializer):
+    owner_email = serializers.CharField(source='owner.email', read_only=True)
+    
+    class Meta:
+        model = Restaurant
+        fields = ['id', 'name', 'owner_email', 'is_active', 'city', 'created_at']
+
+class AdminOrderSerializer(serializers.ModelSerializer):
+    customer_email = serializers.CharField(source='customer.email', read_only=True)
+    restaurant_name = serializers.CharField(source='restaurant.name', read_only=True)
+    
+    class Meta:
+        model = Order
+        fields = ['id', 'order_number', 'customer_email', 'restaurant_name', 'status', 'total_amount', 'placed_at']

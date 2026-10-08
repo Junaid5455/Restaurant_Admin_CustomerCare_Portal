@@ -1,21 +1,11 @@
-"""
-URLs for the common app — health check endpoints.
-"""
-from django.http import JsonResponse
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from . import views
 
-
-def health_check(request):
-    """Simple health check endpoint."""
-    return JsonResponse(
-        {
-            "status": "healthy",
-            "service": "restaurant_portal",
-            "version": "1.0.0",
-        }
-    )
-
+router = DefaultRouter()
+router.register(r'admin', views.SuperAdminViewSet, basename='admin')
 
 urlpatterns = [
-    path("", health_check, name="health_check"),
+    path('', include(router.urls)),
+    path('health/', views.health_check, name='health_check'),
 ]
