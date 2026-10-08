@@ -4,7 +4,6 @@ from apps.menu.models import MenuItem
 
 class PopularItemSerializer(serializers.Serializer):
     """Serializer for popular items aggregation"""
-    # Change 'menu_item_id' to 'id'
     id = serializers.UUIDField()
     name = serializers.CharField()
     total_quantity_sold = serializers.IntegerField()
@@ -18,3 +17,22 @@ class RecentOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['id', 'order_number', 'customer_email', 'status', 'total_amount', 'items_count', 'placed_at']
+
+class SalesReportSerializer(serializers.Serializer):
+    """Serializer for sales reports"""
+    date = serializers.CharField()
+    total_orders = serializers.IntegerField()
+    total_sales = serializers.DecimalField(max_digits=12, decimal_places=2)
+    average_order_value = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+class CustomerAnalyticsSerializer(serializers.Serializer):
+    """Serializer for customer analytics"""
+    customer_id = serializers.UUIDField()
+    customer_email = serializers.CharField()
+    total_orders = serializers.IntegerField()
+    total_spent = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+class OperationalMetricsSerializer(serializers.Serializer):
+    """Serializer for operational metrics"""
+    peak_hour = serializers.IntegerField()
+    order_count = serializers.IntegerField()
