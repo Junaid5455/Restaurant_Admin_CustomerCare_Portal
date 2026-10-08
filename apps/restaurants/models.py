@@ -1,9 +1,13 @@
+import secrets
 from django.db import models
 from django.utils.text import slugify
 from django.core.exceptions import ValidationError
 from apps.common.models import BaseModel
 from apps.users.models import User
 from apps.common.choices import STAFF_ROLES
+
+
+
 
 
 class Restaurant(BaseModel):
@@ -104,3 +108,50 @@ class RestaurantStaffMember(BaseModel):
     def assign_role(self, new_role):
         self.role = new_role
         self.save()
+
+
+
+
+class RestaurantTable(BaseModel):
+    """Represents a physical table in the restaurant"""
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='tables')
+    table_number = models.CharField(max_length=10)
+    capacity = models.IntegerField(default=2)
+    is_active = models.BooleanField(default=True)
+    qr_code_token = models.CharField(max_length=50, unique=True, blank=True)
+
+    class Meta:
+        unique_together = ('restaurant', 'table_number')
+
+    def save(self, *args, **kwargs):
+        if not self.qr_code_token:
+            self.qr_code_token = secrets.token_urlsafe(16)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.restaurant.name} - Table {self.table_number}"
+
+class Reservation(BaseModel):
+    """Customer reservations for dine-in"""
+    STATUS_CHOICES = (
+        ('PENDING', 'Pending'),
+        ('CONFIRMED', 'Confirmed'),
+        ('CANCELLED', 'Cancelled'),
+        ('COMPLETED', 'Completed'),
+        ('NO_SHOW', 'No Show'),
+    )
+
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='reservations')
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reservations')
+    table = models.ForeignKey(RestaurantTable, on_delete=models.SET_NULL, null=True, blank=True, related_name='reservations')
+    
+    reservation_time = models.DateTimeField()
+    party_size = models.IntegerField(default=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    special_requests = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-reservation_time']
+
+    def __str__(self):
+        return f"Reservation for {self.customer.email} at {self.restaurant.name}"

@@ -12,12 +12,16 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 
 from apps.common.permissions import CanManageRestaurant, IsRestaurantOwner
-from apps.restaurants.models import RestaurantStaffMember ,Restaurant, RestaurantDeliveryZone,  RestaurantHoliday
-from apps.restaurants.serializers import RestaurantDetailSerializer, RestaurantListSerializer, RestaurantDeliveryZoneSerializer, RestaurantSettingsSerializer, RestaurantHolidaySerializer, StaffMemberSerializer
+from apps.restaurants.models import Restaurant, RestaurantHoliday, RestaurantDeliveryZone, RestaurantStaffMember, RestaurantTable, Reservation
+from apps.restaurants.serializers import RestaurantDetailSerializer, RestaurantListSerializer, RestaurantDeliveryZoneSerializer, RestaurantSettingsSerializer, RestaurantHolidaySerializer, StaffMemberSerializer,     RestaurantTableSerializer, ReservationSerializer, AvailableSlotsSerializer
+
 from apps.menu.models import MenuCategory
 from apps.menu.serializers import MenuCategoryDetailSerializer
 from rest_framework.exceptions import ValidationError
 from apps.users.models import User
+
+from django.utils import timezone
+from datetime import timedelta
 
 
 
@@ -215,3 +219,97 @@ class StaffMemberViewSet(viewsets.ModelViewSet):
         staff_member.save()
         serializer = self.get_serializer(staff_member)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# Add these to your existing apps/restaurants/views.py
+
+
+class RestaurantTableViewSet(viewsets.ModelViewSet):
+    """Manage restaurant tables"""
+    serializer_class = RestaurantTableSerializer
+    permission_classes = [IsAuthenticated, IsRestaurantOwner]
+
+    def get_queryset(self):
+        return RestaurantTable.objects.filter(restaurant__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        restaurant = get_object_or_404(Restaurant, owner=self.request.user)
+        serializer.save(restaurant=restaurant)
+
+
+class ReservationViewSet(viewsets.ModelViewSet):
+    """Manage reservations"""
+    serializer_class = ReservationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'CUSTOMER':
+            return Reservation.objects.filter(customer=user).select_related('restaurant', 'table')
+        elif user.role == 'RESTAURANT_OWNER':
+            return Reservation.objects.filter(restaurant__owner=user).select_related('restaurant', 'table', 'customer')
+        elif user.role == 'SUPER_ADMIN':
+            return Reservation.objects.all().select_related('restaurant', 'table', 'customer')
+        return Reservation.objects.none()
+
+    def perform_create(self, serializer):
+        # Customers can only create pending reservations
+        serializer.save(customer=self.request.user, status='PENDING')
+
+    @action(detail=False, methods=['get'], url_path='available-slots')
+    def available_slots(self, request):
+        """GET /api/v1/reservations/available-slots/?restaurant_id=uuid&date=2026-10-10"""
+        restaurant_id = request.query_params.get('restaurant_id')
+        date_str = request.query_params.get('date')
+        
+        if not restaurant_id or not date_str:
+            return Response({"error": "restaurant_id and date are required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            restaurant = Restaurant.objects.get(id=restaurant_id, is_active=True)
+        except Restaurant.DoesNotExist:
+            return Response({"error": "Restaurant not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+        # Generate slots from opening to closing time
+        slots = []
+        current_time = timezone.now().replace(hour=restaurant.opening_time.hour, minute=restaurant.opening_time.minute, second=0, microsecond=0)
+        closing_time = timezone.now().replace(hour=restaurant.closing_time.hour, minute=restaurant.closing_time.minute, second=0, microsecond=0)
+        
+        while current_time < closing_time:
+            # Check if table is available (simple logic: less than 5 reservations at that exact hour)
+            reservations_count = Reservation.objects.filter(
+                restaurant=restaurant,
+                reservation_time=current_time,
+                status__in=['PENDING', 'CONFIRMED']
+            ).count()
+            
+            slots.append({"time": current_time, "is_available": reservations_count < 5})
+            current_time += timedelta(hours=1)
+            
+        serializer = AvailableSlotsSerializer(slots, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='confirm')
+    def confirm_reservation(self, request, pk=None):
+        """POST /api/v1/reservations/{id}/confirm/ (Owner only)"""
+        reservation = self.get_object()
+        
+        if request.user != reservation.restaurant.owner and request.user.role != 'SUPER_ADMIN':
+            return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+            
+        reservation.status = 'CONFIRMED'
+        reservation.save()
+        return Response(ReservationSerializer(reservation).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel_reservation(self, request, pk=None):
+        """POST /api/v1/reservations/{id}/cancel/"""
+        reservation = self.get_object()
+        
+        # Only the customer who made it or the restaurant owner can cancel
+        if request.user != reservation.customer and request.user != reservation.restaurant.owner and request.user.role != 'SUPER_ADMIN':
+            return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+            
+        reservation.status = 'CANCELLED'
+        reservation.save()
+        return Response({"message": "Reservation cancelled"}, status=status.HTTP_200_OK)

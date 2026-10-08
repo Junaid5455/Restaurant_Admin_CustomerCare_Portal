@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.menu.serializers import MenuCategorySerializer
-from apps.restaurants.models import Restaurant, RestaurantHoliday, RestaurantDeliveryZone, RestaurantStaffMember
+from apps.restaurants.models import Restaurant, RestaurantHoliday, RestaurantDeliveryZone, RestaurantStaffMember, RestaurantTable, Reservation
 
 
 
@@ -90,3 +90,29 @@ class StaffMemberSerializer(serializers.ModelSerializer):
             'can_manage_payments', 'can_view_analytics', 'created_at'
         ]
         read_only_fields = ['is_active', 'created_at']
+
+
+
+class RestaurantTableSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RestaurantTable
+        fields = ['id', 'table_number', 'capacity', 'is_active', 'qr_code_token', 'created_at']
+        read_only_fields = ['qr_code_token', 'created_at']
+
+class ReservationSerializer(serializers.ModelSerializer):
+    customer_email = serializers.CharField(source='customer.email', read_only=True)
+    restaurant_name = serializers.CharField(source='restaurant.name', read_only=True)
+    table_number = serializers.CharField(source='table.table_number', read_only=True)
+
+    class Meta:
+        model = Reservation
+        fields = [
+            'id', 'restaurant', 'restaurant_name', 'customer', 'customer_email', 'table', 'table_number',
+            'reservation_time', 'party_size', 'status', 'special_requests', 'created_at'
+        ]
+        read_only_fields = ['customer', 'status', 'table']
+
+class AvailableSlotsSerializer(serializers.Serializer):
+    """Serializer for returning available time slots"""
+    time = serializers.DateTimeField()
+    is_available = serializers.BooleanField()

@@ -6,6 +6,8 @@ router = DefaultRouter()
 router.register(r'holidays', views.RestaurantHolidayViewSet, basename='holidays')
 router.register(r'delivery-zones', views.RestaurantDeliveryZoneViewSet, basename='delivery-zones')
 router.register(r'staff', views.StaffMemberViewSet, basename='staff')
+router.register(r'tables', views.RestaurantTableViewSet, basename='tables')
+router.register(r'reservations', views.ReservationViewSet, basename='reservations')
 router.register(r'', views.RestaurantViewSet, basename='restaurant')
 
 urlpatterns = [
