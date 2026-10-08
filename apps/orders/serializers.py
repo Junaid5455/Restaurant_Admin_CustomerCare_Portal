@@ -1,8 +1,10 @@
 from rest_framework import serializers
-from apps.orders.models import Order, OrderItem, OrderItemCustomization, OrderItemAddOn
+from apps.orders.models import Order, OrderItem, OrderItemCustomization, OrderItemAddOn, Coupon, CouponRedemption
 from apps.menu.models import MenuItem, MenuItemCustomizationOption, MenuItemAddOn
 from decimal import Decimal
 from apps.common.choices import ORDER_STATUS
+
+
 
 class OrderStatusUpdateSerializer(serializers.Serializer):
     """Serializer for validating order status updates"""
@@ -99,3 +101,26 @@ class OrderTrackingSerializer(serializers.ModelSerializer):
             {"name": item.item_name, "quantity": item.quantity} 
             for item in obj.items.all()
         ]
+
+
+
+class CouponRedemptionSerializer(serializers.ModelSerializer):
+    customer_email = serializers.CharField(source='user.email', read_only=True)
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
+
+    class Meta:
+        model = CouponRedemption
+        fields = ['id', 'customer_email', 'order_number', 'created_at']
+
+class CouponSerializer(serializers.ModelSerializer):
+    redemptions = CouponRedemptionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Coupon
+        fields = [
+            'id', 'restaurant', 'code', 'description', 'discount_type', 'discount_value',
+            'min_order_amount', 'max_uses', 'times_used', 'valid_from', 'valid_to', 
+            'is_active', 'redemptions', 'created_at'
+        ]
+        # Add 'restaurant' to read_only_fields
+        read_only_fields = ['times_used', 'created_at', 'restaurant']

@@ -7,15 +7,19 @@ from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.common.permissions import IsCustomerUser, IsOwnerOfOrder
-from apps.orders.models import Order, OrderItem, OrderItemCustomization, OrderItemAddOn
+from apps.orders.models import Order, OrderItem, OrderItemCustomization, OrderItemAddOn, Coupon
 from apps.orders.serializers import (
     CartSerializer, AddToCartSerializer, OrderSerializer, 
-    OrderTrackingSerializer, OrderStatusUpdateSerializer
+    OrderTrackingSerializer, OrderStatusUpdateSerializer, CouponSerializer
 )
 from apps.menu.models import MenuItem, MenuItemCustomizationOption, MenuItemAddOn
-from apps.restaurants.models import RestaurantStaffMember
+from apps.restaurants.models import Restaurant, RestaurantStaffMember
 from apps.users.models import SavedAddress
 from decimal import Decimal
+from django.utils import timezone
+
+
+
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -280,3 +284,54 @@ class CartViewSet(viewsets.ViewSet):
             "order_type": cart.order_type,
             "total_amount": str(cart.total_amount)
         }, status=status.HTTP_200_OK)
+
+
+# Add these to your existing apps/orders/views.py
+
+
+# Make sure to import IsRestaurantOwner at the top of apps/orders/views.py
+from apps.common.permissions import IsCustomerUser, IsOwnerOfOrder, IsRestaurantOwner
+
+class CouponViewSet(viewsets.ModelViewSet):
+    """Manage restaurant coupons and offers"""
+    serializer_class = CouponSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        # Block customers/staff from creating or modifying coupons
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'toggle_active']:
+            return [IsAuthenticated(), IsRestaurantOwner()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'RESTAURANT_OWNER':
+            return Coupon.objects.filter(restaurant__owner=user).prefetch_related('redemptions')
+        elif user.role == 'SUPER_ADMIN':
+            return Coupon.objects.all().prefetch_related('redemptions')
+        return Coupon.objects.none()
+
+    def perform_create(self, serializer):
+        restaurant_id = self.request.data.get('restaurant_id')
+        if not restaurant_id:
+            raise ValidationError({"restaurant_id": "This field is required."})
+            
+        try:
+            restaurant = Restaurant.objects.get(id=restaurant_id, owner=self.request.user)
+        except Restaurant.DoesNotExist:
+            raise ValidationError("Invalid restaurant or you do not own this restaurant.")
+            
+        # Check if code already exists
+        code = self.request.data.get('code', '').upper()
+        if Coupon.objects.filter(code=code).exists():
+            raise ValidationError({"code": "This coupon code already exists."})
+            
+        serializer.save(restaurant=restaurant, code=code)
+
+    @action(detail=True, methods=['post'], url_path='toggle-active')
+    def toggle_active(self, request, pk=None):
+        """POST /api/v1/orders/coupons/{id}/toggle-active/"""
+        coupon = self.get_object()
+        coupon.is_active = not coupon.is_active
+        coupon.save()
+        return Response({"is_active": coupon.is_active}, status=status.HTTP_200_OK)

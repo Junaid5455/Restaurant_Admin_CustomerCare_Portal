@@ -10,6 +10,7 @@ from apps.menu.models import MenuItem
 from apps.common.choices import ORDER_TYPES, ORDER_STATUS, PAYMENT_STATUS
 
 
+
 def generate_order_number():
     timestamp = timezone.now().strftime("%Y%m%d%H%M")
     random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
@@ -157,3 +158,44 @@ class OrderItemAddOn(BaseModel):
 
     def __str__(self):
         return self.addon_name
+
+
+
+class Coupon(BaseModel):
+    """Coupons for discounts and offers"""
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='coupons')
+    code = models.CharField(max_length=50, unique=True)
+    description = models.CharField(max_length=255, blank=True, null=True)
+    
+    DISCOUNT_TYPES = (
+        ('PERCENTAGE', 'Percentage'),
+        ('FIXED', 'Fixed Amount'),
+    )
+    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPES, default='PERCENTAGE')
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2, help_text="e.g., 10 for 10% or 5.00 for $5")
+    
+    min_order_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    max_uses = models.IntegerField(default=0, help_text="0 for unlimited")
+    times_used = models.IntegerField(default=0)
+    
+    valid_from = models.DateTimeField()
+    valid_to = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+
+    def clean(self):
+        if self.valid_from >= self.valid_to:
+            raise ValidationError("Valid to date must be after valid from date.")
+        if self.discount_type == 'PERCENTAGE' and (self.discount_value < 0 or self.discount_value > 100):
+            raise ValidationError("Percentage discount must be between 0 and 100.")
+
+    def __str__(self):
+        return f"{self.code} - {self.restaurant.name}"
+
+class CouponRedemption(BaseModel):
+    """Tracks when a user redeems a coupon on an order"""
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, related_name='redemptions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('coupon', 'user') # User can only use a specific coupon once
