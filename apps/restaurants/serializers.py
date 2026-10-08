@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from apps.restaurants.models import Restaurant, RestaurantDeliveryZone, RestaurantHoliday
 from apps.menu.serializers import MenuCategorySerializer
+from apps.restaurants.models import Restaurant, RestaurantHoliday, RestaurantDeliveryZone, RestaurantStaffMember
+
 
 
 class RestaurantDeliveryZoneSerializer(serializers.ModelSerializer):
@@ -73,3 +74,19 @@ class RestaurantDeliveryZoneSerializer(serializers.ModelSerializer):
     class Meta:
         model = RestaurantDeliveryZone
         fields = ['id', 'zone_name', 'delivery_fee', 'delivery_time_minutes', 'postal_codes', 'is_active']
+
+
+
+class StaffMemberSerializer(serializers.ModelSerializer):
+    """Serializer for managing restaurant staff"""
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    staff_email = serializers.EmailField(write_only=True, required=False)
+    
+    class Meta:
+        model = RestaurantStaffMember
+        fields = [
+            'id', 'user_email', 'staff_email', 'role', 'is_active', 
+            'can_manage_menu', 'can_manage_orders', 'can_manage_staff', 
+            'can_manage_payments', 'can_view_analytics', 'created_at'
+        ]
+        read_only_fields = ['is_active', 'created_at']

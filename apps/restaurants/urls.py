@@ -3,10 +3,9 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
-# Register specific routes FIRST so they don't get swallowed by the empty string
 router.register(r'holidays', views.RestaurantHolidayViewSet, basename='holidays')
 router.register(r'delivery-zones', views.RestaurantDeliveryZoneViewSet, basename='delivery-zones')
-# Register the main restaurant viewset last with an empty prefix
+router.register(r'staff', views.StaffMemberViewSet, basename='staff')
 router.register(r'', views.RestaurantViewSet, basename='restaurant')
 
 urlpatterns = [
