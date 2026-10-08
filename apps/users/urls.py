@@ -12,6 +12,9 @@ router.register(r'addresses', views.SavedAddressViewSet, basename='addresses')
 router.register(r'favorites/restaurants', views.FavoriteRestaurantViewSet, basename='favorite-restaurants')
 router.register(r'favorites/items', views.FavoriteMenuItemViewSet, basename='favorite-items')
 router.register(r'gift-cards', views.GiftCardViewSet, basename='gift-cards')
+router.register(r'campaigns', views.CampaignViewSet, basename='campaigns')
+router.register(r'preferences', views.NotificationPreferenceViewSet, basename='preferences')
+router.register(r'notifications', views.NotificationViewSet, basename='notifications')
 
 urlpatterns = [
     # JWT Token endpoints
@@ -33,9 +36,9 @@ urlpatterns = [
     path('forgot-password/', views.ForgotPasswordView.as_view(), name='forgot_password'),
     path('reset-password/', views.ResetPasswordView.as_view(), name='reset_password'),
     
-    # Account Management endpoints (Step 3.7)
+    # Account Management endpoints
     path('rewards/', views.RewardView.as_view(), name='rewards'),
     
-    # Include the routers for addresses, favorites, and gift cards
+    # Include the routers
     path('', include(router.urls)),
 ]

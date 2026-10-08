@@ -1,12 +1,16 @@
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
-from apps.users.models import UserProfile
 from apps.users.models import EmailVerificationToken, PasswordResetToken
 from django.utils import timezone
-from apps.users.models import SavedAddress, FavoriteRestaurant, FavoriteMenuItem, GiftCard
+from apps.users.models import Campaign, SavedAddress, FavoriteRestaurant, FavoriteMenuItem, GiftCard
 from apps.restaurants.serializers import RestaurantListSerializer
 from apps.menu.serializers import MenuItemSerializer
+
+from apps.users.models import (
+    User, UserProfile, SavedAddress, FavoriteRestaurant, FavoriteMenuItem, 
+    GiftCard, NotificationPreference, Notification
+)
 
 
 
@@ -185,3 +189,28 @@ class RewardSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['loyalty_points', 'total_orders', 'total_spent']
+
+
+
+
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationPreference
+        fields = ['id', 'email_promotions', 'sms_promotions', 'push_promotions', 'order_updates']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'campaign', 'title', 'message', 'is_read', 'created_at']
+        read_only_fields = ['campaign', 'title', 'message', 'created_at']
+
+class CampaignSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Campaign
+        fields = [
+            'id', 'restaurant', 'name', 'channel', 'target_segment', 'subject', 
+            'body', 'is_sent', 'sent_at', 'recipient_count', 'created_at'
+        ]
+        # Add 'restaurant' to read_only_fields so it doesn't demand it in the POST body
+        read_only_fields = ['is_sent', 'sent_at', 'recipient_count', 'created_at', 'restaurant']

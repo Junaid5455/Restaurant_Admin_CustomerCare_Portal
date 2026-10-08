@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from apps.users.serializers import (
     CustomUserSerializer, 
     CustomUserCreateSerializer, 
@@ -16,15 +17,29 @@ from apps.common.responses import SuccessResponse, ErrorResponse
 from django.contrib.auth import get_user_model
 
 from apps.users.serializers import EmailVerificationSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
-from apps.users.models import User, UserProfile, SavedAddress, EmailVerificationToken, PasswordResetToken, FavoriteRestaurant, FavoriteMenuItem, GiftCard
+from apps.users.models import (
+    User, UserProfile, SavedAddress, EmailVerificationToken, PasswordResetToken, FavoriteRestaurant,
+      FavoriteMenuItem, GiftCard, NotificationPreference, Notification, Campaign
+)
 from apps.users.email_service import EmailService
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 from apps.users.models import SavedAddress
-from apps.users.serializers import SavedAddressSerializer
 from apps.common.permissions import IsCustomerUser
 
+from django.db.models import Count, Q
+from datetime import timedelta
+
+from apps.users.serializers import (
+    SavedAddressSerializer, FavoriteRestaurantSerializer, FavoriteMenuItemSerializer, GiftCardSerializer, 
+    RewardSerializer, NotificationPreferenceSerializer, NotificationSerializer, CampaignSerializer
+)
+from apps.orders.models import Order
+from apps.common.permissions import IsCustomerUser, IsRestaurantOwner
+from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
+from apps.restaurants.models import Restaurant
 
 
 
@@ -279,3 +294,114 @@ class RewardView(APIView):
         profile, created = UserProfile.objects.get_or_create(user=request.user)
         serializer = RewardSerializer(profile)
         return Response(serializer.data)
+
+
+
+
+
+class CampaignViewSet(viewsets.ModelViewSet):
+    """Manage marketing campaigns"""
+    serializer_class = CampaignSerializer
+    permission_classes = [IsAuthenticated, IsRestaurantOwner]
+
+    def get_queryset(self):
+        return Campaign.objects.filter(restaurant__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        restaurant_id = self.request.data.get('restaurant_id')
+        if not restaurant_id:
+            raise ValidationError({"restaurant_id": "This field is required."})
+        restaurant = get_object_or_404(Restaurant, id=restaurant_id, owner=self.request.user)
+        serializer.save(restaurant=restaurant)
+
+    @action(detail=True, methods=['post'], url_path='send')
+    def send_campaign(self, request, pk=None):
+        """POST /api/v1/users/campaigns/{id}/send/ - Trigger the campaign"""
+        campaign = self.get_object()
+        
+        if campaign.is_sent:
+            return Response({"error": "Campaign already sent"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # 1. Determine target audience based on segment
+        customers = User.objects.filter(role='CUSTOMER')
+        
+        if campaign.target_segment == 'INACTIVE':
+            # Customers who haven't ordered in 30 days but have ordered before
+            thirty_days_ago = timezone.now() - timedelta(days=30)
+            recent_customers = Order.objects.filter(placed_at__gte=thirty_days_ago).values_list('customer_id', flat=True)
+            customers = customers.filter(orders__isnull=False).exclude(id__in=recent_customers).distinct()
+            
+        elif campaign.target_segment == 'ABANDONED_CART':
+            # Customers with an active CART status order
+            cart_users = Order.objects.filter(status='CART').values_list('customer_id', flat=True)
+            customers = customers.filter(id__in=cart_users)
+            
+        # 2. Filter by notification preferences
+        if campaign.channel == 'EMAIL':
+            customers = customers.filter(notification_preferences__email_promotions=True)
+        elif campaign.channel == 'SMS':
+            customers = customers.filter(notification_preferences__sms_promotions=True)
+        elif campaign.channel == 'PUSH':
+            customers = customers.filter(notification_preferences__push_promotions=True)
+
+        # 3. Simulate sending and create Notification records
+        notifications_to_create = []
+        for customer in customers:
+            notifications_to_create.append(Notification(
+                user=customer,
+                campaign=campaign,
+                title=campaign.subject or campaign.name,
+                message=campaign.body
+            ))
+            
+        Notification.objects.bulk_create(notifications_to_create)
+        
+        # 4. Update campaign status
+        campaign.is_sent = True
+        campaign.sent_at = timezone.now()
+        campaign.recipient_count = len(notifications_to_create)
+        campaign.save()
+        
+        return Response({
+            "message": f"Campaign sent successfully to {campaign.recipient_count} recipients.",
+            "recipient_count": campaign.recipient_count
+        }, status=status.HTTP_200_OK)
+
+
+class NotificationPreferenceViewSet(viewsets.ModelViewSet):
+    """Manage user notification preferences"""
+    serializer_class = NotificationPreferenceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return NotificationPreference.objects.filter(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        # Use update_or_create to avoid IntegrityError if preferences already exist
+        obj, created = NotificationPreference.objects.update_or_create(
+            user=request.user,
+            defaults={
+                'email_promotions': request.data.get('email_promotions', True),
+                'sms_promotions': request.data.get('sms_promotions', False),
+                'push_promotions': request.data.get('push_promotions', True),
+                'order_updates': request.data.get('order_updates', True),
+            }
+        )
+        serializer = self.get_serializer(obj)
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    """View user notifications"""
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+
+    @action(detail=True, methods=['post'], url_path='mark-read')
+    def mark_read(self, request, pk=None):
+        """POST /api/v1/users/notifications/{id}/mark-read/"""
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        return Response({"message": "Notification marked as read"}, status=status.HTTP_200_OK)

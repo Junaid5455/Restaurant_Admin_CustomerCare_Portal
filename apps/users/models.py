@@ -252,3 +252,43 @@ class GiftCard(BaseModel):
     balance = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
     expires_at = models.DateTimeField(null=True, blank=True)
+
+
+class NotificationPreference(BaseModel):
+    """User's preferences for receiving marketing and transactional notifications"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_preferences')
+    email_promotions = models.BooleanField(default=True)
+    sms_promotions = models.BooleanField(default=False)
+    push_promotions = models.BooleanField(default=True)
+    order_updates = models.BooleanField(default=True)
+
+class Campaign(BaseModel):
+    """Marketing campaigns created by restaurant owners"""
+    CHANNEL_CHOICES = (
+        ('EMAIL', 'Email'),
+        ('SMS', 'SMS'),
+        ('PUSH', 'Push Notification'),
+    )
+    SEGMENT_CHOICES = (
+        ('ALL', 'All Customers'),
+        ('INACTIVE', 'Inactive Customers (30+ days)'),
+        ('ABANDONED_CART', 'Abandoned Cart'),
+    )
+    
+    restaurant = models.ForeignKey('restaurants.Restaurant', on_delete=models.CASCADE, related_name='campaigns')
+    name = models.CharField(max_length=200)
+    channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES, default='EMAIL')
+    target_segment = models.CharField(max_length=20, choices=SEGMENT_CHOICES, default='ALL')
+    subject = models.CharField(max_length=200, blank=True, null=True)
+    body = models.TextField()
+    is_sent = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    recipient_count = models.IntegerField(default=0)
+
+class Notification(BaseModel):
+    """Tracks individual notifications sent to users"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    campaign = models.ForeignKey(Campaign, on_delete=models.SET_NULL, null=True, blank=True, related_name='notifications')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
