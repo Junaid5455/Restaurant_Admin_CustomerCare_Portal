@@ -1,9 +1,10 @@
-"""
-URL configuration for the delivery app.
-"""
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from . import views
 
 router = DefaultRouter()
-# TODO: Register viewsets here
+router.register(r'', views.DeliveryViewSet, basename='delivery')
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('', include(router.urls)),
+]
